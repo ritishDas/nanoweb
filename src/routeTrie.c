@@ -17,11 +17,11 @@ TrieNode *RouteNodeInit() {
 
 // void addMethod(char *path, Method method) {}
 
-void pathSeparator(Vector(char *) vec, List(char) path) {
-  int first = 0;
-
-  for (int i = 1; i < path.size; i++) {
-
-    if (path[i] == '/')
-  }
-}
+// void pathSeparator(Vector(char *) vec, List(char) path) {
+//   int first = 0;
+//
+//   for (int i = 1; i < path.size; i++) {
+//
+//     if (path[i] == '/')
+//   }
+// }

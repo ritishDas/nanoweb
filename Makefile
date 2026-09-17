@@ -13,6 +13,8 @@ OBJ_DIRS  := $(sort $(dir $(OBJS))) bin
 .PHONY: all clean
 
 all: $(TARGET) 
+
+run: $(TARGET) 
 	./bin/app
 
 $(TARGET): $(OBJS) | bin

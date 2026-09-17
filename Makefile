@@ -13,6 +13,7 @@ OBJ_DIRS  := $(sort $(dir $(OBJS))) bin
 .PHONY: all clean
 
 all: $(TARGET) 
+	./bin/app
 
 $(TARGET): $(OBJS) | bin
 	@echo "Linking: $@"

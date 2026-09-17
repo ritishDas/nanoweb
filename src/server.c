@@ -19,15 +19,60 @@ void handle_sigint(int sig) {
   running = 0;
 }
 
+static const char *get_status_text(int status_code) {
+  switch (status_code) {
+  case 200:
+    return "OK";
+  case 201:
+    return "Created";
+  case 204:
+    return "No Content";
+  case 400:
+    return "Bad Request";
+  case 403:
+    return "Forbidden";
+  case 404:
+    return "Not Found";
+  case 405:
+    return "Method Not Allowed";
+  case 500:
+    return "Internal Server Error";
+  default:
+    return "Unknown";
+  }
+}
+
+void newServerResponse(char *buffer, size_t *bufferSize, int status_code,
+                       const char *content_type, const char *body) {
+
+  const char *safe_body = body ? body : "";
+  const char *safe_type = content_type ? content_type : "text/plain";
+  size_t body_len = strlen(safe_body);
+  const char *status_text = get_status_text(status_code);
+
+  int written =
+      snprintf(buffer, *bufferSize,
+               "HTTP/1.1 %d %s\r\n"
+               "Content-Type: %s\r\n"
+               "Content-Length: %zu\r\n"
+               "Connection: close\r\n"
+               "\r\n"
+               "%s",
+               status_code, status_text, safe_type, body_len, safe_body);
+
+  if (written < 0 || (size_t)written >= *bufferSize) {
+    perror("Buffer Too Small");
+    exit(1);
+  }
+
+  *bufferSize = (size_t)written;
+}
+
 Request *newServerRequest(const char *method, size_t method_len,
                           const char *path, size_t path_len,
                           struct phr_header *headers, size_t header_len) {
 
   Request *new = malloc(sizeof(Request));
-
-  VECTOR_INIT(&(new->path));
-  VECTOR_INIT(&(new->method));
-  VECTOR_INIT(&(new->header));
 
   new->path.data = path;
   new->path.size = path_len;
@@ -139,22 +184,16 @@ void server(char *port) {
       Request *userReq = newServerRequest(method, method_len, path, path_len,
                                           headers, headerNum);
 
-      printf("method is %s\n", userReq->method.data);
-      printf("path is %s\n", userReq->path.data);
-      printf("HTTP version is 1.%d\n", minor_version);
-      printf("headers:\n");
-      for (size_t i = 0; i < userReq->header.size; ++i) {
+      char response_buffer[1024];
+      size_t response_len = sizeof(response_buffer);
 
-        struct phr_header *headers = userReq->header.data;
-        printf("%.*s: %.*s\n", (int)headers[i].name_len, headers[i].name,
-               (int)headers[i].value_len, headers[i].value);
-      }
+      const char *html_body =
+          "<h1>Hello, World!</h1><p>Welcome to the server.</p>";
 
-      // Optional:
-      //   Send a minimal 200 OK response back
-      const char resp[] =
-          "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
-      send(receiverFd, resp, sizeof(resp) - 1, 0);
+      newServerResponse(response_buffer, &response_len, 200, "text/html",
+                        html_body);
+
+      send(receiverFd, response_buffer, response_len, 0);
 
       free(userReq);
     }

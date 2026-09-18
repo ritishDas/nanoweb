@@ -8,31 +8,17 @@
 
 #define PORT "3000"
 
-int main() {
+void testFun(char *s) { printf("%s\n", s); }
 
-  StringVec test;
-  VECTOR_INIT(&test);
-  String path = {.data = "/hi/:id/das", .size = sizeof("/hi/:id/das")};
-  pathSeparator(&test, path);
+int main() {
 
   TrieNode *routeNode = RouteNodeInit();
 
-  for (size_t i = 0; i < test.size; i++) {
-    printf("%s\n", test.data[i]);
+  Method m = {.type = GET, .handler = testFun};
 
-    TrieNode *new = RouteNodeInit();
-
-    Method *met = malloc(sizeof(Method));
-    met->type = GET;
-    new->method = met;
-
-    insertMap(routeNode->children, test.data[i], new);
-
-    routeNode = new;
-  }
+  addMethod(routeNode, "/help/rd", &m);
 
   RouteNodeFree(routeNode);
-  freeStringVec(&test);
 
   server(PORT);
   return EXIT_SUCCESS;

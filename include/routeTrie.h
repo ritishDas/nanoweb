@@ -14,25 +14,26 @@ typedef enum httpMethod { GET, POST, PUT, DELETE, PATCH, QUERY } MethodType;
 
 typedef struct method {
   MethodType type;
+  void (*handler)(char *);
 } Method;
 
 typedef struct routeNode {
+  _Bool complete;
   List(char) path;
   Method *method;
-  // controllers here
   khash_t(1) * children;
 } TrieNode;
 
 typedef Vector(char *) StringVec;
 typedef List(char) String;
 
-// TrieNode *RouteNodeInit();
-
 void pathSeparator(StringVec *vec, String path);
 
 void freeStringVec(StringVec *vec);
 
 void RouteNodeFree(TrieNode *tn);
+
+void addMethod(TrieNode *nanoweb, char *path, Method *method);
 
 TrieNode *RouteNodeInit(void);
 #endif

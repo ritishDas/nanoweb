@@ -26,6 +26,9 @@
         (v)->data = _ptr;                                                      \
         (v)->capacity = _new_cap;                                              \
         (v)->data[(v)->size++] = (val);                                        \
+      } else {                                                                 \
+        perror("Vector reallocation failed");                                  \
+        exit(1);                                                               \
       }                                                                        \
     } else {                                                                   \
       (v)->data[(v)->size++] = (val);                                          \

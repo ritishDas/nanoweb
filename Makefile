@@ -1,5 +1,5 @@
 CC        := gcc
-CFLAGS    := -g -std=c2x -Wall -Wextra -Werror -Iinclude -MMD -MP -O2
+CFLAGS    := -std=c2x -Wall -Wextra -Werror -Iinclude -MMD -MP -O2
 LDFLAGS   := -lpq
 
 TARGET    := bin/app

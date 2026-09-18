@@ -28,7 +28,7 @@ void insertMap(khash_t(1) * dictionary, char *key, TrieNode *val) {
     return;
 
   kIter = kh_put(1, dictionary, ownedKey, &kStatus);
-  if (kStatus) {
+  if (kStatus > 0) {
     kh_value(dictionary, kIter) = val;
   } else {
     free(ownedKey);

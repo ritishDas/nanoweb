@@ -14,7 +14,7 @@ This is a web server written in pure c. Currently it's in the initial developmen
 * Build the project with `make`.
 * Run with ./bin/app.
 
-## Api Refenrece
+## API Reference
 
 ```c
 #define PORT "3000"

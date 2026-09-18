@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 
 static char *copyChars(const char *data, size_t len) {
   char *copy = malloc(len + 1);
@@ -102,34 +103,33 @@ void addMethod(TrieNode *nanoweb, char *path, Method *method) {
   if (!nanoweb || !path || !method)
     return;
 
-  StringVec test;
-  VECTOR_INIT(&test);
+  StringVec pathVec;
+  VECTOR_INIT(&pathVec);
 
   String p = {.data = path, .size = strlen(path)};
 
-  pathSeparator(&test, p);
+  pathSeparator(&pathVec, p);
 
   TrieNode *temp = nanoweb;
-  for (size_t i = 0; i < test.size; i++) {
-    printf("%s\n", test.data[i]);
+  for (size_t i = 0; i < pathVec.size; i++) {
 
-    TrieNode *temp2 = checkKey(temp->children, test.data[i]);
+    TrieNode *temp2 = checkKey(temp->children, pathVec.data[i]);
     if (!temp2) {
 
       TrieNode *newNode = RouteNodeInit();
       if (!newNode ||
-          !setNodePath(newNode, test.data[i], strlen(test.data[i]))) {
+          !setNodePath(newNode, pathVec.data[i], strlen(pathVec.data[i]))) {
         RouteNodeFree(newNode);
         break;
       }
 
-      insertMap(temp->children, test.data[i], newNode);
+      insertMap(temp->children, pathVec.data[i], newNode);
       temp = newNode;
     } else {
       temp = temp2;
     }
 
-    if (i == test.size - 1) {
+    if (i == pathVec.size - 1) {
       Method *met = malloc(sizeof(Method));
       if (!met)
         break;
@@ -141,6 +141,38 @@ void addMethod(TrieNode *nanoweb, char *path, Method *method) {
     }
   }
 
-  freeStringVec(&test);
-  VECTOR_FREE(&test);
+  freeStringVec(&pathVec);
+  VECTOR_FREE(&pathVec);
+}
+
+void routeMatcher(TrieNode *nanoweb, String p, int receiverFd) {
+  StringVec pathVec;
+  VECTOR_INIT(&pathVec);
+
+  pathSeparator(&pathVec, p);
+
+  TrieNode *temp = nanoweb;
+
+  for (size_t i = 0; i < pathVec.size; i++) {
+
+    khiter_t kIter = kh_get(1, temp->children, pathVec.data[i]);
+
+    if (kIter == kh_end(temp->children)) {
+      printf("No route found 404\n");
+      freeStringVec(&pathVec);
+      return;
+    }
+
+    temp = kh_value(temp->children, kIter);
+  }
+
+  if (temp->complete) {
+    ControllerRes response = temp->method->handler();
+
+    send(receiverFd, response.res, response.reslen, 0);
+  } else {
+    printf("No route found 404\n");
+  }
+
+  freeStringVec(&pathVec);
 }

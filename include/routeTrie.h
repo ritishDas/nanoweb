@@ -12,9 +12,14 @@ KHASH_MAP_INIT_STR(1, struct routeNode *);
 
 typedef enum httpMethod { GET, POST, PUT, DELETE, PATCH, QUERY } MethodType;
 
+typedef struct controllerRes {
+  char *res;
+  size_t reslen;
+} ControllerRes;
+
 typedef struct method {
   MethodType type;
-  void (*handler)(char *);
+  ControllerRes (*handler)();
 } Method;
 
 typedef struct routeNode {
@@ -36,4 +41,6 @@ void RouteNodeFree(TrieNode *tn);
 void addMethod(TrieNode *nanoweb, char *path, Method *method);
 
 TrieNode *RouteNodeInit(void);
+
+void routeMatcher(TrieNode *nanoweb, String path, int receiverFd);
 #endif

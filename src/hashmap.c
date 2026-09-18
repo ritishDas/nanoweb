@@ -33,8 +33,6 @@ void insertMap(khash_t(1) * dictionary, char *key, TrieNode *val) {
   } else {
     free(ownedKey);
   }
-
-  printf("inserted %s", key);
 }
 
 void destroyMap(khash_t(1) * dictionary) {

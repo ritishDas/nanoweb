@@ -2,6 +2,7 @@
 
 #include "server.h"
 #include "picohttpparser.h"
+#include "routeTrie.h"
 #include "vector.h"
 #include <netdb.h>
 #include <signal.h>
@@ -86,7 +87,8 @@ Request *newServerRequest(const char *method, size_t method_len,
   return new;
 }
 
-void server(char *port) {
+void server(char *port, TrieNode *routeNode) {
+
   struct addrinfo hint = {.ai_family = AF_UNSPEC,
                           .ai_socktype = SOCK_STREAM,
                           .ai_flags = AI_PASSIVE};
@@ -184,16 +186,10 @@ void server(char *port) {
       Request *userReq = newServerRequest(method, method_len, path, path_len,
                                           headers, headerNum);
 
-      char response_buffer[1024];
-      size_t response_len = sizeof(response_buffer);
-
-      const char *html_body =
-          "<h1>Hello, World!</h1><p>Welcome to the server.</p>";
-
-      newServerResponse(response_buffer, &response_len, 200, "text/html",
-                        html_body);
-
-      send(receiverFd, response_buffer, response_len, 0);
+      String tempStr = {.data = (char *)userReq->path.data,
+                        .size = userReq->path.size};
+      // RD TODO Continue from here
+      routeMatcher(routeNode, tempStr, receiverFd);
 
       free(userReq);
     }

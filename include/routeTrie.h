@@ -1,6 +1,12 @@
 #ifndef ROUTETRIE_H
 #define ROUTETRIE_H
 
+#include "khash.h"
+
+struct routeNode;
+KHASH_MAP_INIT_STR(1, struct routeNode *);
+
+#include "khash.h"
 #include "list.h"
 #include "vector.h"
 
@@ -14,9 +20,19 @@ typedef struct routeNode {
   List(char) path;
   Method *method;
   // controllers here
-  Vector(struct routeNode *) * children;
+  khash_t(1) * children;
 } TrieNode;
 
-TrieNode *RouteNodeInit();
+typedef Vector(char *) StringVec;
+typedef List(char) String;
 
+// TrieNode *RouteNodeInit();
+
+void pathSeparator(StringVec *vec, String path);
+
+void freeStringVec(StringVec *vec);
+
+void RouteNodeFree(TrieNode *tn);
+
+TrieNode *RouteNodeInit(void);
 #endif

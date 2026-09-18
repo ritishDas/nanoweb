@@ -18,12 +18,9 @@ run: $(TARGET)
 	./bin/app
 
 $(TARGET): $(OBJS) | bin
-	@echo "Linking: $@"
 	@$(CC) $(OBJS) -o $@ $(LDFLAGS)
-	@echo "Build complete: $(TARGET)"
 
 obj/%.o: src/%.c | $(OBJ_DIRS)
-	@echo "Compiling: $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIRS):
@@ -33,4 +30,3 @@ $(OBJ_DIRS):
 
 clean:
 	@rm -rf obj bin
-	@echo "Cleaned."

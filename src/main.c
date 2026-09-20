@@ -31,8 +31,8 @@ int main() {
 
   TrieNode *routeNode = RouteNodeInit();
   Method m = {.type = GET, .handler = helloController};
-  addMethod(routeNode, "/help/:rd", &m);
-  // addMethod(routeNode, "/help/rd", &m);
+  addMethod(routeNode, "/test", &m);
+  // addMethod(routeNode, "/help/:rd", &m);
   // routeMatcher(routeNode, "/help/rd");
 
   server(PORT, routeNode);

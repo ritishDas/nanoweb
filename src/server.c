@@ -1,9 +1,9 @@
 #define _POSIX_C_SOURCE 202405L
 
 #include "server.h"
+#include "hashmap.h"
 #include "picohttpparser.h"
 #include "routeTrie.h"
-#include "vector.h"
 #include <netdb.h>
 #include <signal.h>
 #include <stddef.h>
@@ -83,6 +83,8 @@ Request *newServerRequest(const char *method, size_t method_len,
 
   new->header.data = headers;
   new->header.size = header_len;
+
+  new->params = nullptr;
 
   return new;
 }
@@ -188,15 +190,15 @@ void server(char *port, TrieNode *routeNode) {
 
       String tempStr = {.data = (char *)userReq->path.data,
                         .size = userReq->path.size};
-      // RD TODO Continue from here
-      routeMatcher(routeNode, tempStr, receiverFd);
 
+      routeMatcher(userReq, routeNode, tempStr, receiverFd);
+
+      destroyMap2(userReq->params);
       free(userReq);
     }
 
     close(receiverFd);
   }
-
   close(serverFd);
   printf("Server shut down\n");
 }

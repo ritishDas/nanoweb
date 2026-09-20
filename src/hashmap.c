@@ -5,6 +5,7 @@
 #include <string.h>
 
 khash_t(1) * newMap() { return kh_init(1); }
+khash_t(2) * newMap2() { return kh_init(2); }
 
 static char *copyString(const char *s) {
   size_t len = strlen(s) + 1;
@@ -33,6 +34,29 @@ void insertMap(khash_t(1) * dictionary, char *key, TrieNode *val) {
   } else {
     free(ownedKey);
   }
+
+  printf("inserted %s in size %d \n", key, kh_size(dictionary));
+}
+
+void insertCharMap(khash_t(2) * dictionary, const char *key,
+                   const char *value) {
+  if (!dictionary)
+    return;
+
+  int kStatus;
+
+  khiter_t kIter;
+  kIter = kh_put(2, dictionary, (char *)key, &kStatus);
+  if (kStatus > 0) {
+    kh_value(dictionary, kIter) = (char *)value;
+  }
+}
+
+void destroyMap2(khash_t(2) * dictionary) {
+  if (!dictionary)
+    return;
+
+  kh_destroy(2, dictionary);
 }
 
 void destroyMap(khash_t(1) * dictionary) {

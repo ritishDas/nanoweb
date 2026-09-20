@@ -1,6 +1,7 @@
 #include "routeTrie.h"
 #include "hashmap.h"
 #include "khash.h"
+#include "server.h"
 #include "vector.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -34,10 +35,11 @@ TrieNode *RouteNodeInit(void) {
   if (!newNode)
     return NULL;
 
-  newNode->path.data = NULL;
+  newNode->path.data = nullptr;
   newNode->path.size = 0;
   newNode->complete = 0;
   newNode->children = newMap();
+  newNode->dynamicChildren = nullptr;
   newNode->method = NULL;
 
   if (!newNode->children ||
@@ -60,6 +62,19 @@ void RouteNodeFree(TrieNode *tn) {
       TrieNode *child = kh_value(tn->children, k);
       RouteNodeFree(child);
     }
+  }
+
+  if (tn->dynamicChildren) {
+
+    for (khiter_t k = kh_begin(tn->dynamicChildren);
+         k != kh_end(tn->dynamicChildren); k++) {
+
+      if (kh_exist(tn->dynamicChildren, k)) {
+        TrieNode *child = kh_value(tn->dynamicChildren, k);
+        RouteNodeFree(child);
+      }
+    }
+    destroyMap(tn->dynamicChildren);
   }
 
   destroyMap(tn->children);
@@ -111,22 +126,43 @@ void addMethod(TrieNode *nanoweb, char *path, Method *method) {
   pathSeparator(&pathVec, p);
 
   TrieNode *temp = nanoweb;
+
   for (size_t i = 0; i < pathVec.size; i++) {
 
-    TrieNode *temp2 = checkKey(temp->children, pathVec.data[i]);
-    if (!temp2) {
+    if (pathVec.data[i][0] != ':') {
 
-      TrieNode *newNode = RouteNodeInit();
-      if (!newNode ||
-          !setNodePath(newNode, pathVec.data[i], strlen(pathVec.data[i]))) {
-        RouteNodeFree(newNode);
-        break;
+      TrieNode *temp2 = checkKey(temp->children, pathVec.data[i]);
+      if (!temp2) {
+
+        TrieNode *newNode = RouteNodeInit();
+        // if (!newNode ||
+        //     !setNodePath(newNode, pathVec.data[i], strlen(pathVec.data[i])))
+        //     {
+        //   RouteNodeFree(newNode);
+        //   break;
+        // }
+
+        insertMap(temp->children, pathVec.data[i], newNode);
+        temp = newNode;
+      } else {
+        temp = temp2;
       }
 
-      insertMap(temp->children, pathVec.data[i], newNode);
-      temp = newNode;
     } else {
-      temp = temp2;
+      if (!temp->dynamicChildren)
+        temp->dynamicChildren = newMap();
+
+      TrieNode *temp2 = checkKey(temp->dynamicChildren, pathVec.data[i]);
+
+      if (!temp2) {
+
+        TrieNode *newNode = RouteNodeInit();
+
+        insertMap(temp->dynamicChildren, pathVec.data[i], newNode);
+        temp = newNode;
+      } else {
+        temp = temp2;
+      }
     }
 
     if (i == pathVec.size - 1) {
@@ -145,34 +181,129 @@ void addMethod(TrieNode *nanoweb, char *path, Method *method) {
   VECTOR_FREE(&pathVec);
 }
 
-void routeMatcher(TrieNode *nanoweb, String p, int receiverFd) {
+// chatgpt
+static TrieNode *matchRoute(Request *userReq, TrieNode *node,
+                            StringVec *pathVec, size_t index) {
+  if (!node)
+    return NULL;
+
+  // We consumed the entire request path.
+  if (index == pathVec->size) {
+    if (node->complete)
+      return node;
+
+    return NULL;
+  }
+
+  /*
+   * 1. Try an exact/static match first.
+   */
+  TrieNode *staticNode = checkKey(node->children, pathVec->data[index]);
+
+  if (staticNode) {
+    TrieNode *result = matchRoute(userReq, staticNode, pathVec, index + 1);
+
+    if (result)
+      return result;
+  }
+
+  /*
+   * 2. Static route didn't work.
+   *    Try a dynamic route.
+   */
+  if (node->dynamicChildren) {
+
+    /*
+     * At the moment, any dynamic child can consume
+     * this path component.
+     *
+     * Example:
+     *
+     * /:id
+     * /:id/name
+     *
+     * dynamicChildren contains ":id".
+     */
+
+    userReq->params = newMap2();
+
+    insertCharMap(userReq->params, node->path.data + 1, pathVec->data[index]);
+
+    khiter_t k = kh_begin(node->dynamicChildren);
+
+    for (; k != kh_end(node->dynamicChildren); ++k) {
+
+      if (!kh_exist(node->dynamicChildren, k))
+        continue;
+
+      TrieNode *dynamicNode = kh_value(node->dynamicChildren, k);
+
+      TrieNode *result = matchRoute(userReq, dynamicNode, pathVec, index + 1);
+
+      if (result)
+        return result;
+    }
+  }
+
+  /*
+   * Nothing worked from this node.
+   * This causes the caller to backtrack.
+   */
+  return NULL;
+}
+
+void routeMatcher(Request *userReq, TrieNode *nanoweb, String p,
+                  int receiverFd) {
+
   StringVec pathVec;
   VECTOR_INIT(&pathVec);
 
   pathSeparator(&pathVec, p);
 
-  TrieNode *temp = nanoweb;
+  TrieNode *temp = matchRoute(userReq, nanoweb, &pathVec, 0);
 
-  for (size_t i = 0; i < pathVec.size; i++) {
-
-    khiter_t kIter = kh_get(1, temp->children, pathVec.data[i]);
-
-    if (kIter == kh_end(temp->children)) {
-      printf("No route found 404\n");
-      freeStringVec(&pathVec);
-      return;
-    }
-
-    temp = kh_value(temp->children, kIter);
-  }
-
-  if (temp->complete) {
-    ControllerRes response = temp->method->handler();
-
-    send(receiverFd, response.res, response.reslen, 0);
-  } else {
+  if (!temp) {
     printf("No route found 404\n");
+    freeStringVec(&pathVec);
+    return;
   }
+
+  ControllerRes response = temp->method->handler();
+
+  send(receiverFd, response.res, response.reslen, 0);
 
   freeStringVec(&pathVec);
+  free(response.res);
 }
+
+// void routeMatcher(TrieNode *nanoweb, String p, int receiverFd) {
+//   StringVec pathVec;
+//   VECTOR_INIT(&pathVec);
+//
+//   pathSeparator(&pathVec, p);
+//
+//   TrieNode *temp = nanoweb;
+//
+//   for (size_t i = 0; i < pathVec.size; i++) {
+//
+//     khiter_t kIter = kh_get(1, temp->children, pathVec.data[i]);
+//
+//     if (kIter == kh_end(temp->children)) {
+//       printf("No route found 404\n");
+//       freeStringVec(&pathVec);
+//       return;
+//     }
+//
+//     temp = kh_value(temp->children, kIter);
+//   }
+//
+//   if (temp->complete) {
+//     ControllerRes response = temp->method->handler();
+//
+//     send(receiverFd, response.res, response.reslen, 0);
+//   } else {
+//     printf("No route found 404\n");
+//   }
+//
+//   freeStringVec(&pathVec);
+// }

@@ -1,16 +1,15 @@
-#include "hashmap.h"
 #include "routeTrie.h"
 #include "server.h"
-#include "vector.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 #define PORT "3000"
 
-ControllerRes testFun() {
+ControllerRes helloController() {
 
   char *response_buffer = malloc(sizeof(char) * 1024);
   size_t response_len = sizeof(char) * 1024;
@@ -28,8 +27,9 @@ ControllerRes testFun() {
 int main() {
 
   TrieNode *routeNode = RouteNodeInit();
-  Method m = {.type = GET, .handler = testFun};
-  addMethod(routeNode, "/help/rd", &m);
+  Method m = {.type = GET, .handler = helloController};
+  addMethod(routeNode, "/help/:rd", &m);
+  // addMethod(routeNode, "/help/rd", &m);
   // routeMatcher(routeNode, "/help/rd");
 
   server(PORT, routeNode);

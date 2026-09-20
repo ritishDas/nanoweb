@@ -15,3 +15,5 @@ khash_t(2) * newMap2();
 void insertCharMap(khash_t(2) * dictionary, const char *key, const char *value);
 
 void destroyMap2(khash_t(2) * dictionary);
+
+khash_t(2) *copyMap2(khash_t(2) *dictionary);

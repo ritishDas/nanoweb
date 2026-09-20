@@ -12,6 +12,9 @@
 ControllerRes helloController() {
 
   char *response_buffer = malloc(sizeof(char) * 1024);
+  if (!response_buffer)
+    return (ControllerRes){.res = NULL, .reslen = 0};
+
   size_t response_len = sizeof(char) * 1024;
 
   const char *html_body = "<h1>Hello, World!</h1><p>Welcome to the server.</p>";

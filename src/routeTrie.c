@@ -30,6 +30,43 @@ static int setNodePath(TrieNode *node, const char *data, size_t len) {
   return 1;
 }
 
+static void sendResponse(int receiverFd, int statusCode, const char *contentType,
+                         const char *body) {
+  char response[1024];
+  size_t responseLen = sizeof(response);
+
+  newServerResponse(response, &responseLen, statusCode, contentType, body);
+
+  size_t sent = 0;
+  while (sent < responseLen) {
+    ssize_t written = send(receiverFd, response + sent, responseLen - sent, 0);
+    if (written <= 0)
+      return;
+
+    sent += (size_t)written;
+  }
+}
+
+static _Bool methodMatches(MethodType methodType, const char *method,
+                           size_t methodSize) {
+  switch (methodType) {
+  case GET:
+    return methodSize == 3 && memcmp(method, "GET", 3) == 0;
+  case POST:
+    return methodSize == 4 && memcmp(method, "POST", 4) == 0;
+  case PUT:
+    return methodSize == 3 && memcmp(method, "PUT", 3) == 0;
+  case DELETE:
+    return methodSize == 6 && memcmp(method, "DELETE", 6) == 0;
+  case PATCH:
+    return methodSize == 5 && memcmp(method, "PATCH", 5) == 0;
+  case QUERY:
+    return methodSize == 5 && memcmp(method, "QUERY", 5) == 0;
+  }
+
+  return 0;
+}
+
 TrieNode *RouteNodeInit(void) {
   TrieNode *newNode = malloc(sizeof(TrieNode));
   if (!newNode)
@@ -135,12 +172,11 @@ void addMethod(TrieNode *nanoweb, char *path, Method *method) {
       if (!temp2) {
 
         TrieNode *newNode = RouteNodeInit();
-        // if (!newNode ||
-        //     !setNodePath(newNode, pathVec.data[i], strlen(pathVec.data[i])))
-        //     {
-        //   RouteNodeFree(newNode);
-        //   break;
-        // }
+        if (!newNode ||
+            !setNodePath(newNode, pathVec.data[i], strlen(pathVec.data[i]))) {
+          RouteNodeFree(newNode);
+          break;
+        }
 
         insertMap(temp->children, pathVec.data[i], newNode);
         temp = newNode;
@@ -157,6 +193,11 @@ void addMethod(TrieNode *nanoweb, char *path, Method *method) {
       if (!temp2) {
 
         TrieNode *newNode = RouteNodeInit();
+        if (!newNode ||
+            !setNodePath(newNode, pathVec.data[i], strlen(pathVec.data[i]))) {
+          RouteNodeFree(newNode);
+          break;
+        }
 
         insertMap(temp->dynamicChildren, pathVec.data[i], newNode);
         temp = newNode;
@@ -225,10 +266,6 @@ static TrieNode *matchRoute(Request *userReq, TrieNode *node,
      * dynamicChildren contains ":id".
      */
 
-    userReq->params = newMap2();
-
-    insertCharMap(userReq->params, node->path.data + 1, pathVec->data[index]);
-
     khiter_t k = kh_begin(node->dynamicChildren);
 
     for (; k != kh_end(node->dynamicChildren); ++k) {
@@ -237,11 +274,27 @@ static TrieNode *matchRoute(Request *userReq, TrieNode *node,
         continue;
 
       TrieNode *dynamicNode = kh_value(node->dynamicChildren, k);
+      khash_t(2) *previousParams = userReq->params;
+      userReq->params = copyMap2(previousParams);
+      if (!userReq->params) {
+        userReq->params = previousParams;
+        return NULL;
+      }
+
+      if (dynamicNode->path.size > 1 && dynamicNode->path.data[0] == ':') {
+        insertCharMap(userReq->params, dynamicNode->path.data + 1,
+                      pathVec->data[index]);
+      }
 
       TrieNode *result = matchRoute(userReq, dynamicNode, pathVec, index + 1);
 
-      if (result)
+      if (result) {
+        destroyMap2(previousParams);
         return result;
+      }
+
+      destroyMap2(userReq->params);
+      userReq->params = previousParams;
     }
   }
 
@@ -263,16 +316,40 @@ void routeMatcher(Request *userReq, TrieNode *nanoweb, String p,
   TrieNode *temp = matchRoute(userReq, nanoweb, &pathVec, 0);
 
   if (!temp) {
-    printf("No route found 404\n");
+    sendResponse(receiverFd, 404, "text/plain", "Not Found");
     freeStringVec(&pathVec);
+    VECTOR_FREE(&pathVec);
+    return;
+  }
+
+  if (!methodMatches(temp->method->type, userReq->method.data,
+                     userReq->method.size)) {
+    sendResponse(receiverFd, 405, "text/plain", "Method Not Allowed");
+    freeStringVec(&pathVec);
+    VECTOR_FREE(&pathVec);
     return;
   }
 
   ControllerRes response = temp->method->handler();
+  if (!response.res) {
+    sendResponse(receiverFd, 500, "text/plain", "Internal Server Error");
+    freeStringVec(&pathVec);
+    VECTOR_FREE(&pathVec);
+    return;
+  }
 
-  send(receiverFd, response.res, response.reslen, 0);
+  size_t sent = 0;
+  while (sent < response.reslen) {
+    ssize_t written =
+        send(receiverFd, response.res + sent, response.reslen - sent, 0);
+    if (written <= 0)
+      break;
+
+    sent += (size_t)written;
+  }
 
   freeStringVec(&pathVec);
+  VECTOR_FREE(&pathVec);
   free(response.res);
 }
 

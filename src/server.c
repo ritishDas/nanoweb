@@ -74,6 +74,8 @@ Request *newServerRequest(const char *method, size_t method_len,
                           struct phr_header *headers, size_t header_len) {
 
   Request *new = malloc(sizeof(Request));
+  if (!new)
+    return NULL;
 
   new->path.data = path;
   new->path.size = path_len;
@@ -87,6 +89,24 @@ Request *newServerRequest(const char *method, size_t method_len,
   new->params = nullptr;
 
   return new;
+}
+
+static void sendSimpleResponse(int receiverFd, int statusCode,
+                               const char *body) {
+  char response[1024];
+  size_t responseLen = sizeof(response);
+
+  newServerResponse(response, &responseLen, statusCode, "text/plain", body);
+
+  size_t sent = 0;
+  while (sent < responseLen) {
+    ssize_t written =
+        send(receiverFd, response + sent, responseLen - sent, 0);
+    if (written <= 0)
+      return;
+
+    sent += (size_t)written;
+  }
 }
 
 void server(char *port, TrieNode *routeNode) {
@@ -173,12 +193,14 @@ void server(char *port, TrieNode *routeNode) {
         break;
       } else if (pret == -1) {
         fprintf(stderr, "Parse Error: malformed HTTP request\n");
+        sendSimpleResponse(receiverFd, 400, "Bad Request");
         break;
       }
 
       // pret == -2: Request is incomplete, continue recv if space permits
       if (userRequestLen == sizeof(userRequest)) {
         fprintf(stderr, "Request header too large\n");
+        sendSimpleResponse(receiverFd, 400, "Bad Request");
         break;
       }
     }
@@ -187,6 +209,11 @@ void server(char *port, TrieNode *routeNode) {
 
       Request *userReq = newServerRequest(method, method_len, path, path_len,
                                           headers, headerNum);
+      if (!userReq) {
+        sendSimpleResponse(receiverFd, 500, "Internal Server Error");
+        close(receiverFd);
+        continue;
+      }
 
       String tempStr = {.data = (char *)userReq->path.data,
                         .size = userReq->path.size};

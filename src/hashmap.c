@@ -46,9 +46,20 @@ void insertCharMap(khash_t(2) * dictionary, const char *key,
   int kStatus;
 
   khiter_t kIter;
-  kIter = kh_put(2, dictionary, (char *)key, &kStatus);
+  char *ownedKey = copyString(key);
+  char *ownedValue = copyString(value);
+  if (!ownedKey || !ownedValue) {
+    free(ownedKey);
+    free(ownedValue);
+    return;
+  }
+
+  kIter = kh_put(2, dictionary, ownedKey, &kStatus);
   if (kStatus > 0) {
-    kh_value(dictionary, kIter) = (char *)value;
+    kh_value(dictionary, kIter) = ownedValue;
+  } else {
+    free(ownedKey);
+    free(ownedValue);
   }
 }
 
@@ -56,7 +67,31 @@ void destroyMap2(khash_t(2) * dictionary) {
   if (!dictionary)
     return;
 
+  for (khiter_t k = kh_begin(dictionary); k != kh_end(dictionary); ++k) {
+    if (kh_exist(dictionary, k)) {
+      free((char *)kh_key(dictionary, k));
+      free(kh_value(dictionary, k));
+    }
+  }
+
   kh_destroy(2, dictionary);
+}
+
+khash_t(2) *copyMap2(khash_t(2) *dictionary) {
+  khash_t(2) *copy = newMap2();
+  if (!copy)
+    return NULL;
+
+  if (!dictionary)
+    return copy;
+
+  for (khiter_t k = kh_begin(dictionary); k != kh_end(dictionary); ++k) {
+    if (kh_exist(dictionary, k)) {
+      insertCharMap(copy, kh_key(dictionary, k), kh_value(dictionary, k));
+    }
+  }
+
+  return copy;
 }
 
 void destroyMap(khash_t(1) * dictionary) {

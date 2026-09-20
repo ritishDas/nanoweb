@@ -33,4 +33,4 @@ This is a web server written in pure c. Currently it's in the initial developmen
 * `server(PORT)` : Starts the http server on the port number.
 * `addMethod(routeNode, "/help/rd", &m);` : This add a new route with controllers for each method.
 * `routeMatcher(routeNode, "/help/rd", receiverFd);` : This will match path from incoming request and run the appropriate controller.
-* Dynamic route is now supported.
+* Dynamic route is now supported, controllers can now accept userReq and access the params directly form userReq.params map.

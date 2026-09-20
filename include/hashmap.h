@@ -1,6 +1,6 @@
 #pragma once
-#include "khash.h"
-#include "routeTrie.h"
+#include "dataStructure/khash.h"
+#include "server/routeTrie.h"
 
 khash_t(1) * newMap();
 
@@ -16,4 +16,4 @@ void insertCharMap(khash_t(2) * dictionary, const char *key, const char *value);
 
 void destroyMap2(khash_t(2) * dictionary);
 
-khash_t(2) *copyMap2(khash_t(2) *dictionary);
+khash_t(2) * copyMap2(khash_t(2) * dictionary);

@@ -1,9 +1,9 @@
 #ifndef ROUTETRIE_H
 #define ROUTETRIE_H
 
-#include "list.h"
-#include "routeTypes.h"
-#include "vector.h"
+#include "dataStructure/list.h"
+#include "server/routeTypes.h"
+#include "dataStructure/vector.h"
 
 typedef Vector(char *) StringVec;
 typedef List(char) String;

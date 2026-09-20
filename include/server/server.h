@@ -1,8 +1,8 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include "khash.h"
-#include "list.h"
+#include "dataStructure/khash.h"
+#include "dataStructure/list.h"
 #include "picohttpparser.h"
 #include "routeTrie.h"
 #include "routeTypes.h"

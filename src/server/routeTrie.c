@@ -1,8 +1,8 @@
-#include "routeTrie.h"
+#include "server/routeTrie.h"
+#include "dataStructure/khash.h"
+#include "dataStructure/vector.h"
 #include "hashmap.h"
-#include "khash.h"
-#include "server.h"
-#include "vector.h"
+#include "server/server.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,8 +30,8 @@ static int setNodePath(TrieNode *node, const char *data, size_t len) {
   return 1;
 }
 
-static void sendResponse(int receiverFd, int statusCode, const char *contentType,
-                         const char *body) {
+static void sendResponse(int receiverFd, int statusCode,
+                         const char *contentType, const char *body) {
   char response[1024];
   size_t responseLen = sizeof(response);
 
@@ -222,13 +222,11 @@ void addMethod(TrieNode *nanoweb, char *path, Method *method) {
   VECTOR_FREE(&pathVec);
 }
 
-// chatgpt
 static TrieNode *matchRoute(Request *userReq, TrieNode *node,
                             StringVec *pathVec, size_t index) {
   if (!node)
     return NULL;
 
-  // We consumed the entire request path.
   if (index == pathVec->size) {
     if (node->complete)
       return node;
@@ -236,9 +234,6 @@ static TrieNode *matchRoute(Request *userReq, TrieNode *node,
     return NULL;
   }
 
-  /*
-   * 1. Try an exact/static match first.
-   */
   TrieNode *staticNode = checkKey(node->children, pathVec->data[index]);
 
   if (staticNode) {
@@ -248,23 +243,7 @@ static TrieNode *matchRoute(Request *userReq, TrieNode *node,
       return result;
   }
 
-  /*
-   * 2. Static route didn't work.
-   *    Try a dynamic route.
-   */
   if (node->dynamicChildren) {
-
-    /*
-     * At the moment, any dynamic child can consume
-     * this path component.
-     *
-     * Example:
-     *
-     * /:id
-     * /:id/name
-     *
-     * dynamicChildren contains ":id".
-     */
 
     khiter_t k = kh_begin(node->dynamicChildren);
 
@@ -298,10 +277,6 @@ static TrieNode *matchRoute(Request *userReq, TrieNode *node,
     }
   }
 
-  /*
-   * Nothing worked from this node.
-   * This causes the caller to backtrack.
-   */
   return NULL;
 }
 
@@ -352,35 +327,3 @@ void routeMatcher(Request *userReq, TrieNode *nanoweb, String p,
   VECTOR_FREE(&pathVec);
   free(response.res);
 }
-
-// void routeMatcher(TrieNode *nanoweb, String p, int receiverFd) {
-//   StringVec pathVec;
-//   VECTOR_INIT(&pathVec);
-//
-//   pathSeparator(&pathVec, p);
-//
-//   TrieNode *temp = nanoweb;
-//
-//   for (size_t i = 0; i < pathVec.size; i++) {
-//
-//     khiter_t kIter = kh_get(1, temp->children, pathVec.data[i]);
-//
-//     if (kIter == kh_end(temp->children)) {
-//       printf("No route found 404\n");
-//       freeStringVec(&pathVec);
-//       return;
-//     }
-//
-//     temp = kh_value(temp->children, kIter);
-//   }
-//
-//   if (temp->complete) {
-//     ControllerRes response = temp->method->handler();
-//
-//     send(receiverFd, response.res, response.reslen, 0);
-//   } else {
-//     printf("No route found 404\n");
-//   }
-//
-//   freeStringVec(&pathVec);
-// }

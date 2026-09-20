@@ -1,9 +1,9 @@
 #define _POSIX_C_SOURCE 202405L
 
-#include "server.h"
+#include "server/server.h"
 #include "hashmap.h"
 #include "picohttpparser.h"
-#include "routeTrie.h"
+#include "server/routeTrie.h"
 #include <netdb.h>
 #include <signal.h>
 #include <stddef.h>
@@ -100,8 +100,7 @@ static void sendSimpleResponse(int receiverFd, int statusCode,
 
   size_t sent = 0;
   while (sent < responseLen) {
-    ssize_t written =
-        send(receiverFd, response + sent, responseLen - sent, 0);
+    ssize_t written = send(receiverFd, response + sent, responseLen - sent, 0);
     if (written <= 0)
       return;
 

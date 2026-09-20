@@ -1,5 +1,5 @@
-#include "khash.h"
-#include "routeTrie.h"
+#include "dataStructure/khash.h"
+#include "server/routeTrie.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -77,7 +77,7 @@ void destroyMap2(khash_t(2) * dictionary) {
   kh_destroy(2, dictionary);
 }
 
-khash_t(2) *copyMap2(khash_t(2) *dictionary) {
+khash_t(2) * copyMap2(khash_t(2) * dictionary) {
   khash_t(2) *copy = newMap2();
   if (!copy)
     return NULL;

@@ -1,8 +1,8 @@
 #ifndef ROUTE_TYPES_H
 #define ROUTE_TYPES_H
 
-#include "khash.h"
-#include "list.h"
+#include "dataStructure/khash.h"
+#include "dataStructure/list.h"
 #include <stddef.h>
 
 typedef struct controllerRes {

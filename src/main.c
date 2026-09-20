@@ -1,5 +1,5 @@
-#include "routeTrie.h"
-#include "server.h"
+#include "server/routeTrie.h"
+#include "server/server.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

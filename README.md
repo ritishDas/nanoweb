@@ -34,3 +34,10 @@ This is a web server written in pure c. Currently it's in the initial developmen
 * `addMethod(routeNode, "/help/rd", &m);` : This add a new route with controllers for each method.
 * `routeMatcher(routeNode, "/help/rd", receiverFd);` : This will match path from incoming request and run the appropriate controller.
 * Dynamic route is now supported, controllers can now accept userReq and access the params directly form userReq.params map.
+* Added epoll.
+
+>Benchmarks are in [Benchmarks](./benchmark.md)
+
+# Todo 
+* Make client socket fd non blocking.
+* Add separate epoll state machine for each request and response.

@@ -1,3 +1,4 @@
+
 # Nanoweb 
 
 This is a web server written in pure c. Currently it's in the initial development phase.
@@ -37,6 +38,7 @@ This is a web server written in pure c. Currently it's in the initial developmen
 * Added epoll.
 
 >Benchmarks are in [Benchmarks](./benchmark.md)
+<img width="1536" height="1024" alt="benchmark" src="https://github.com/user-attachments/assets/9079e550-3504-44c5-a7b3-7c90d730cea0" />
 
 # Todo 
 * Make client socket fd non blocking.

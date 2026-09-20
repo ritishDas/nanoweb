@@ -4,12 +4,14 @@
 #include "hashmap.h"
 #include "picohttpparser.h"
 #include "server/routeTrie.h"
+#include <fcntl.h>
 #include <netdb.h>
 #include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -127,6 +129,8 @@ void server(char *port, TrieNode *routeNode) {
     exit(2);
   }
 
+  fcntl(serverFd, F_SETFL, O_NONBLOCK);
+
   int opt = 1;
   setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
@@ -151,80 +155,110 @@ void server(char *port, TrieNode *routeNode) {
   sigemptyset(&sa.sa_mask);
   sigaction(SIGINT, &sa, NULL);
 
+  int epfd = epoll_create1(0);
+
+  struct epoll_event event = {.events = EPOLLIN, .data.fd = serverFd};
+
+  epoll_ctl(epfd, EPOLL_CTL_ADD, serverFd, &event);
+
+  struct epoll_event epEvents[64];
+
   while (running) {
-    struct sockaddr_storage theirAddr;
-    socklen_t size = sizeof(theirAddr);
+    int n = epoll_wait(epfd, epEvents, 64, -1);
 
-    int receiverFd = accept(serverFd, (struct sockaddr *)&theirAddr, &size);
-    if (receiverFd == -1) {
-      continue;
-    }
+    for (int i = 0; i < n; i++) {
+      if (epEvents[i].data.fd == serverFd) {
+        // server incomming request
 
-    char userRequest[4096];
-    size_t userRequestLen = 0, prevRequestLen = 0;
-    const char *method = NULL, *path = NULL;
-    size_t method_len = 0, path_len = 0;
-    int minor_version = 0;
-    struct phr_header headers[100];
-    size_t headerNum;
-    int pret = -2;
+        struct sockaddr_storage theirAddr;
+        socklen_t size = sizeof(theirAddr);
+        int receiverFd = accept(serverFd, (struct sockaddr *)&theirAddr, &size);
 
-    while (1) {
-      ssize_t dataReceived = recv(receiverFd, userRequest + userRequestLen,
-                                  sizeof(userRequest) - userRequestLen, 0);
+        if (receiverFd == -1) {
+          continue;
+        }
 
-      if (dataReceived <= 0) {
-        if (dataReceived < 0)
-          perror("recv");
-        break;
-      }
+        // fcntl(receiverFd, F_SETFL, O_NONBLOCK);
+        // epoll state would be required for send and receive so skipping it
+        // right now
 
-      prevRequestLen = userRequestLen;
-      userRequestLen += (size_t)dataReceived;
-      headerNum = sizeof(headers) / sizeof(headers[0]);
+        struct epoll_event client_event = {.events = EPOLLIN,
+                                           .data.fd = receiverFd};
 
-      pret = phr_parse_request(userRequest, userRequestLen, &method,
-                               &method_len, &path, &path_len, &minor_version,
-                               headers, &headerNum, prevRequestLen);
+        epoll_ctl(epfd, EPOLL_CTL_ADD, receiverFd, &client_event);
 
-      if (pret > 0) {
-        // Successfully parsed complete HTTP headers
-        break;
-      } else if (pret == -1) {
-        fprintf(stderr, "Parse Error: malformed HTTP request\n");
-        sendSimpleResponse(receiverFd, 400, "Bad Request");
-        break;
-      }
+      } else {
 
-      // pret == -2: Request is incomplete, continue recv if space permits
-      if (userRequestLen == sizeof(userRequest)) {
-        fprintf(stderr, "Request header too large\n");
-        sendSimpleResponse(receiverFd, 400, "Bad Request");
-        break;
-      }
-    }
+        int receiverFd = epEvents[i].data.fd;
 
-    if (pret > 0) {
+        char userRequest[4096];
+        size_t userRequestLen = 0, prevRequestLen = 0;
+        const char *method = NULL, *path = NULL;
+        size_t method_len = 0, path_len = 0;
+        int minor_version = 0;
+        struct phr_header headers[100];
+        size_t headerNum;
+        int pret = -2;
 
-      Request *userReq = newServerRequest(method, method_len, path, path_len,
-                                          headers, headerNum);
-      if (!userReq) {
-        sendSimpleResponse(receiverFd, 500, "Internal Server Error");
+        while (1) {
+          ssize_t dataReceived = recv(receiverFd, userRequest + userRequestLen,
+                                      sizeof(userRequest) - userRequestLen, 0);
+
+          if (dataReceived <= 0) {
+            if (dataReceived < 0)
+              perror("recv");
+            break;
+          }
+
+          prevRequestLen = userRequestLen;
+          userRequestLen += (size_t)dataReceived;
+          headerNum = sizeof(headers) / sizeof(headers[0]);
+
+          pret = phr_parse_request(
+              userRequest, userRequestLen, &method, &method_len, &path,
+              &path_len, &minor_version, headers, &headerNum, prevRequestLen);
+
+          if (pret > 0) {
+            // Successfully parsed complete HTTP headers
+            break;
+          } else if (pret == -1) {
+            fprintf(stderr, "Parse Error: malformed HTTP request\n");
+            sendSimpleResponse(receiverFd, 400, "Bad Request");
+            break;
+          }
+
+          // pret == -2: Request is incomplete, continue recv if space permits
+          if (userRequestLen == sizeof(userRequest)) {
+            fprintf(stderr, "Request header too large\n");
+            sendSimpleResponse(receiverFd, 400, "Bad Request");
+            break;
+          }
+        }
+
+        if (pret > 0) {
+
+          Request *userReq = newServerRequest(method, method_len, path,
+                                              path_len, headers, headerNum);
+          if (!userReq) {
+            sendSimpleResponse(receiverFd, 500, "Internal Server Error");
+            close(receiverFd);
+            continue;
+          }
+
+          String tempStr = {.data = (char *)userReq->path.data,
+                            .size = userReq->path.size};
+
+          routeMatcher(userReq, routeNode, tempStr, receiverFd);
+
+          destroyMap2(userReq->params);
+          free(userReq);
+        }
+
         close(receiverFd);
-        continue;
       }
-
-      String tempStr = {.data = (char *)userReq->path.data,
-                        .size = userReq->path.size};
-
-      routeMatcher(userReq, routeNode, tempStr, receiverFd);
-
-      destroyMap2(userReq->params);
-      free(userReq);
     }
-
-    close(receiverFd);
   }
+
   close(serverFd);
   printf("Server shut down\n");
 }
